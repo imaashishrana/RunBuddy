@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { AuthProvider } from "@/lib/auth";
 import { PhoneShell } from "@/components/mobile/PhoneShell";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -101,11 +102,13 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
-    <QueryClientProvider client={queryClient}>
-      <PhoneShell>
-        <Outlet />
-      </PhoneShell>
-      <Toaster position="top-center" />
-    </QueryClientProvider>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <PhoneShell>
+          <Outlet />
+        </PhoneShell>
+        <Toaster position="top-center" />
+      </QueryClientProvider>
+    </AuthProvider>
   );
 }

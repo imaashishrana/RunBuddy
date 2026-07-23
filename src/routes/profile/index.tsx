@@ -1,9 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Settings, Share2, Edit3, Trophy, MapPin, Zap, Moon, Bell, Shield, Globe, HelpCircle, LogOut, ChevronRight, Ruler } from "lucide-react";
+import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
+import { Settings, Share2, Edit3, Trophy, MapPin, Zap, Moon, Bell, Shield, Globe, HelpCircle, LogOut, ChevronRight, Ruler, Pencil } from "lucide-react";
 import { AppFrame } from "@/components/mobile/AppFrame";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { getProfile, type Profile } from "@/lib/profile";
 
-export const Route = createFileRoute("/profile")({
+export const Route = createFileRoute("/profile/")({
   component: Profile,
   head: () => ({ meta: [{ title: "Profile · RunBuddy" }] }),
 });
@@ -11,6 +13,47 @@ export const Route = createFileRoute("/profile")({
 function Profile() {
   const [dark, setDark] = useState(false);
   const [units, setUnits] = useState<"km" | "mi">("km");
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate({ to: "/auth" });
+    }
+  }, [loading, user, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let mounted = true;
+
+    getProfile(user.id).then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) {
+        console.error(error);
+        return;
+      }
+      setProfile(data ?? null);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  if (loading || !user) {
+    return null;
+  }
+
+  const name = profile?.full_name ?? user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "Runner";
+  const email = user.email ?? "No email";
+  const avatarUrl = profile?.avatar_url ?? "";
+  const bio = profile?.bio ?? "Ready to run and connect.";
+  const city = profile?.city ?? "Unknown";
+  const pace = profile?.pace ?? "5:24";
+  const runCount = profile?.run_count ?? 0;
+  const memberSince = profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : user.created_at ? new Date(user.created_at).toLocaleDateString() : null;
 
   return (
     <AppFrame>
@@ -19,20 +62,34 @@ function Profile() {
         <div className="relative flex items-center justify-between px-5">
           <h1 className="text-lg font-bold">Profile</h1>
           <div className="flex gap-2">
-            <button className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 backdrop-blur"><Share2 className="h-4 w-4" /></button>
-            <button className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 backdrop-blur"><Settings className="h-4 w-4" /></button>
+            <button className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 backdrop-blur"><Share2 className="h-3.5 w-3.5" /></button>
+            <button className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 backdrop-blur"><Settings className="h-3.5 w-3.5" /></button>
           </div>
         </div>
         <div className="relative mt-6 flex flex-col items-center">
           <div className="relative">
-            <div className="grid h-24 w-24 place-items-center rounded-full bg-white/25 text-3xl font-bold backdrop-blur shadow-float">AR</div>
-            <button className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full grad-accent text-accent-foreground shadow-card">
-              <Edit3 className="h-3.5 w-3.5" />
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Profile avatar"
+                className="h-24 w-24 rounded-full object-cover shadow-float"
+              />
+            ) : (
+              <div className="grid h-24 w-24 place-items-center rounded-full bg-white/25 text-3xl font-bold backdrop-blur shadow-float">
+                {name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <button
+              onClick={() => navigate({ to: "/profile/edit" })}
+              className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full grad-accent text-accent-foreground shadow-card"
+            >
+              <Pencil className="h-3.5 w-3.5" />
             </button>
           </div>
-          <h2 className="mt-3 text-xl font-bold">Alex Rivera</h2>
-          <p className="text-xs opacity-90">Weekend warrior · Brooklyn, NY</p>
-          <p className="mt-2 max-w-[280px] text-center text-xs opacity-80">"Chasing sunrises, one kilometer at a time 🌅"</p>
+          <h2 className="mt-3 text-xl font-bold">{name}</h2>
+          <p className="text-xs opacity-90">{email}</p>
+          {memberSince && <p className="mt-2 text-[11px] opacity-80">Member since {memberSince}</p>}
+          <p className="mt-2 max-w-[280px] text-center text-xs opacity-80">{bio}</p>
         </div>
       </div>
 
@@ -46,9 +103,9 @@ function Profile() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-3">
-          <MiniStat icon={<Trophy className="h-4 w-4" />} label="Rank" value="#12" />
-          <MiniStat icon={<Zap className="h-4 w-4" />} label="Avg pace" value="5:24" />
-          <MiniStat icon={<MapPin className="h-4 w-4" />} label="Cities" value="8" />
+          <MiniStat icon={<Trophy className="h-4 w-4" />} label="Runs" value={`${runCount}`} />
+          <MiniStat icon={<Zap className="h-4 w-4" />} label="Avg pace" value={pace} />
+          <MiniStat icon={<MapPin className="h-4 w-4" />} label="City" value={city} />
         </div>
 
         <h3 className="mt-6 mb-3 text-base font-bold">Recent badges</h3>
@@ -84,11 +141,18 @@ function Profile() {
           <SettingRow icon={<HelpCircle className="h-4 w-4" />} label="Help center" />
         </div>
 
-        <Link to="/auth" className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 py-4 text-sm font-semibold text-destructive">
+        <button
+          onClick={async () => {
+            await signOut();
+            navigate({ to: "/auth" });
+          }}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 py-4 text-sm font-semibold text-destructive"
+        >
           <LogOut className="h-4 w-4" /> Log out
-        </Link>
+        </button>
         <p className="mt-4 text-center text-[11px] text-muted-foreground">RunBuddy v1.0.0</p>
       </div>
+      <Outlet />
     </AppFrame>
   );
 }

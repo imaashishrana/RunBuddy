@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/auth")({
   component: Auth,
@@ -9,7 +10,62 @@ export const Route = createFileRoute("/auth")({
 function Auth() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [showPw, setShowPw] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate({ to: "/home" });
+    }
+  }, [user, navigate]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage(null);
+    setInfoMessage(null);
+    setSubmitting(true);
+
+    if (mode === "login") {
+      const { error } = await signIn({ email, password });
+      setSubmitting(false);
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      navigate({ to: "/home" });
+      return;
+    }
+
+    const { data, error } = await signUp({
+      email,
+      password,
+      fullName: fullName.trim() || undefined,
+    });
+
+    setSubmitting(false);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    if (data?.session) {
+      navigate({ to: "/home" });
+      return;
+    }
+
+    setInfoMessage("Check your email to confirm the new account, then sign in.");
+  };
+
+  const canSubmit = email.trim() !== "" && password !== "" && (mode === "login" || fullName.trim() !== "");
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
@@ -29,7 +85,11 @@ function Auth() {
           {(["login", "signup"] as const).map((m) => (
             <button
               key={m}
-              onClick={() => setMode(m)}
+              onClick={() => {
+                setMode(m);
+                setErrorMessage(null);
+                setInfoMessage(null);
+              }}
               className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
                 mode === m ? "bg-card shadow-card text-foreground" : "text-muted-foreground"
               }`}
@@ -39,19 +99,30 @@ function Auth() {
           ))}
         </div>
 
-        <form
-          onSubmit={(e) => { e.preventDefault(); navigate({ to: "/home" }); }}
-          className="space-y-3"
-        >
+        <form onSubmit={handleSubmit} className="space-y-3">
           {mode === "signup" && (
-            <Field label="Full name" placeholder="Alex Rivera" />
+            <Field
+              label="Full name"
+              placeholder="Alex Rivera"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+            />
           )}
-          <Field label="Email" placeholder="you@example.com" icon={<Mail className="h-4 w-4" />} type="email" />
+          <Field
+            label="Email"
+            placeholder="you@example.com"
+            icon={<Mail className="h-4 w-4" />}
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Password</label>
             <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3.5 focus-within:border-primary">
               <Lock className="h-4 w-4 text-muted-foreground" />
               <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 type={showPw ? "text" : "password"}
                 placeholder="••••••••"
                 className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
@@ -62,6 +133,9 @@ function Auth() {
             </div>
           </div>
 
+          {errorMessage && <p className="text-sm font-medium text-destructive">{errorMessage}</p>}
+          {infoMessage && <p className="text-sm font-medium text-primary">{infoMessage}</p>}
+
           {mode === "login" && (
             <div className="flex justify-end pt-1">
               <button type="button" className="text-xs font-semibold text-primary">Forgot password?</button>
@@ -70,9 +144,12 @@ function Auth() {
 
           <button
             type="submit"
-            className="grad-primary shadow-float mt-2 w-full rounded-2xl py-4 text-base font-semibold text-primary-foreground active:scale-[0.98]"
+            disabled={!canSubmit || submitting}
+            className={`grad-primary shadow-float mt-2 w-full rounded-2xl py-4 text-base font-semibold text-primary-foreground active:scale-[0.98] ${
+              !canSubmit || submitting ? "opacity-60" : ""
+            }`}
           >
-            {mode === "login" ? "Log in" : "Create account"}
+            {submitting ? "Working..." : mode === "login" ? "Log in" : "Create account"}
           </button>
         </form>
 
@@ -95,13 +172,29 @@ function Auth() {
   );
 }
 
-function Field({ label, placeholder, icon, type = "text" }: { label: string; placeholder: string; icon?: React.ReactNode; type?: string }) {
+function Field({
+  label,
+  placeholder,
+  icon,
+  type = "text",
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  icon?: React.ReactNode;
+  type?: string;
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</label>
       <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3.5 focus-within:border-primary">
         {icon && <span className="text-muted-foreground">{icon}</span>}
         <input
+          value={value}
+          onChange={onChange}
           type={type}
           placeholder={placeholder}
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"

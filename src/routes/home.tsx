@@ -1,10 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import {
   Bell, Search, Flame, Footprints, Zap, TrendingUp,
   Play, MapPin, PlusCircle, Users, CloudSun, ChevronRight, Droplets
 } from "lucide-react";
 import { AppFrame } from "@/components/mobile/AppFrame";
 import { runEvents, groups } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/home")({
   component: Home,
@@ -12,6 +14,21 @@ export const Route = createFileRoute("/home")({
 });
 
 function Home() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate({ to: "/auth" });
+    }
+  }, [loading, user, navigate]);
+
+  if (loading || !user) {
+    return null;
+  }
+
+  const name = user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "Runner";
+
   return (
     <AppFrame>
       <div className="space-y-5 px-5 pt-12">
@@ -19,7 +36,7 @@ function Home() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Good morning</p>
-            <h1 className="text-2xl font-bold">Alex Rivera 👋</h1>
+            <h1 className="text-2xl font-bold">{name} 👋</h1>
           </div>
           <div className="flex gap-2">
             <button className="grid h-11 w-11 place-items-center rounded-2xl bg-surface">
